@@ -6,9 +6,11 @@
 #include <string>
 
 static const int SCREEN_WIDTH = 800;
-static const int SCREEN_HEIGHT = 600;
+static const int SCREEN_HEIGHT = 800;
 static GLuint gProgram;
 static GLuint gVBO;
+static GLuint gIBO;
+GLint gVertexPos2DLocation = -1;
 
 SDL_Window* gWindow = nullptr;
 
@@ -30,7 +32,7 @@ std::string readFileToString(std::string filePath)
 {
 	std::ifstream ifs(filePath);
 	std::string content((std::istreambuf_iterator<char>(ifs)),
-						(std::istreambuf_iterator<char>()));
+		(std::istreambuf_iterator<char>()));
 	return content;
 }
 
@@ -114,13 +116,13 @@ int main(int argc, char** argv)
 
 	////////////////////////////////////////////////////////////
 	// set up sdl opengl features
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+	//SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	//SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+	//SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 
 	// init sdl gl context
 	SDL_GLContext glContext = SDL_GL_CreateContext(gWindow);
@@ -141,11 +143,16 @@ int main(int argc, char** argv)
 	glClearColor(0.2, 0.2, 0.2, 1.0);
 
 	// create a fragment shader with coordination and sample2d past by vertex shader
-	std::string vertexShaderSourceStr = "#version 130\nvoid main(){\ngl_Position = vec4(0, 0, 0, 1);\n}";
+	//std::string vertexShaderSourceStr = "#version 130\nvoid main(){\ngl_Position = vec4(0, 0, 0, 1);\ngl_PointSize = 10.0;\n}";
 	//const GLchar* vertexShaderSource = readFileToString("assets/shaders/shader.vert").c_str();
-	const GLchar* vertexShaderSource = vertexShaderSourceStr.c_str();
+
+	const GLchar* vertexShaderSource[] =
+	{
+		"#version 130\nin vec2 LVertexPos2D; void main() { gl_Position = vec4( LVertexPos2D.x, LVertexPos2D.y, 0, 1 ); }"
+	};
+
 	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+	glShaderSource(vertexShader, 1, vertexShaderSource, nullptr);
 	glCompileShader(vertexShader);
 
 	//Check vertex shader for errors
@@ -177,41 +184,103 @@ int main(int argc, char** argv)
 
 	// create program
 	gProgram = glCreateProgram();
+	if (gProgram == 0)
+	{
+		std::cerr << "Failed to create program" << std::endl;
+		pressAnyKeyToContinue();
+		return 1;
+	}
 
 	// create shaders
 	glAttachShader(gProgram, vertexShader);
+	if (glGetError() != GL_NO_ERROR) {
+		GLenum glError = glGetError();
+		std::cerr << "Failed to attach vertexShader : " << glError << std::endl;
+		pressAnyKeyToContinue();
+		return 1;
+	}
+
 	glAttachShader(gProgram, fragShader);
+	if (glGetError() != GL_NO_ERROR) {
+		GLenum glError = glGetError();
+		std::cerr << "Failed to attach fragShader : " << glError << std::endl;
+		pressAnyKeyToContinue();
+		return 1;
+	}
 
-	// link program
-	glLinkProgram(gProgram);
-
-	//Check for errors
-	GLint programSuccess = GL_TRUE;
-	glGetProgramiv(gProgram, GL_LINK_STATUS, &programSuccess);
-	if (programSuccess != GL_TRUE)
 	{
-		printf("Error linking program %d!\n", gProgram);
-		printProgramLog(gProgram);
+		// link program
+		glLinkProgram(gProgram);
+
+		//Check for errors
+		GLint programSuccess = GL_TRUE;
+		glGetProgramiv(gProgram, GL_LINK_STATUS, &programSuccess);
+		if (programSuccess != GL_TRUE)
+		{
+			printf("Error linking program %d!\n", gProgram);
+			printProgramLog(gProgram);
+			pressAnyKeyToContinue();
+			return 1;
+		}
+	}
+
+	//Get vertex attribute location
+	gVertexPos2DLocation = glGetAttribLocation(gProgram, "LVertexPos2D");
+	if (gVertexPos2DLocation == -1)
+	{
+		printf("LVertexPos2D is not a valid glsl program variable!\n");
 		pressAnyKeyToContinue();
 		return 1;
 	}
 
 	// define array with quad vertex and texture coord data
-	float vertexData[] = {
-		0.0f, 1.0f, 0.0f, 0.0f,
-		1.0f, 1.0f, 1.0f, 0.0f,
-		1.0f, 0.0f, 1.0f, 1.0f,
-		0.0f, 0.0f, 0.0f, 1.0f,
+	/*float vertexData[] = {
+	0.0f, 1.0f, 0.0f, 0.0f,
+	1.0f, 1.0f, 1.0f, 0.0f,
+	1.0f, 0.0f, 1.0f, 1.0f,
+	0.0f, 0.0f, 0.0f, 1.0f,
+	};
+	*/
+	GLfloat vertexData[] = {
+		-0.5f, -0.5f,
+		0.5f, -0.5f,
+		0.5f,  0.5f,
+		-0.5f,  0.5f
 	};
 
 	// create buffer
 	glGenBuffers(1, &gVBO);
-	
+	if (glGetError() != GL_NO_ERROR) {
+		GLenum glError = glGetError();
+		std::cerr << "Failed to gen VBO : " << glError << std::endl;
+		pressAnyKeyToContinue();
+		return 1;
+	}
+
 	// active buffer
 	glBindBuffer(GL_ARRAY_BUFFER, gVBO);
+	if (glGetError() != GL_NO_ERROR) {
+		GLenum glError = glGetError();
+		std::cerr << "Failed to bind buffer VBO : " << glError << std::endl;
+		pressAnyKeyToContinue();
+		return 1;
+	}
 
 	// put content in buffer data
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * 4, vertexData, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 2 * 4, vertexData, GL_STATIC_DRAW);
+	if (glGetError() != GL_NO_ERROR) {
+		GLenum glError = glGetError();
+		std::cerr << "Failed to do buffer data for VBO : " << glError << std::endl;
+		pressAnyKeyToContinue();
+		return 1;
+	}
+
+	//IBO data
+	GLuint indexData[] = { 0, 1, 2, 3 };
+	//Create IBO
+	glGenBuffers(1, &gIBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
 
 	// get position location
 	//glGetAttribLocation(program, "");
@@ -244,17 +313,38 @@ void mainloop()
 				loop = false;
 			}
 		}
+
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		//Bind program
 		glUseProgram(gProgram);
-		//glEnableVertexArrayAttrib(gPosition);
+
+		//Enable vertex position
+		glEnableVertexAttribArray(gVertexPos2DLocation);
+
+		//Set vertex data
 		glBindBuffer(GL_ARRAY_BUFFER, gVBO);
-		glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_INT, NULL);
+		glVertexAttribPointer(gVertexPos2DLocation, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL);
+
+		//Set index data and render
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIBO);
+		glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
+
+		//Disable vertex position
+		//glDisableVertexAttribArray(gVertexPos2DLocation);
+
+		//Unbind program
+		glUseProgram(NULL);
+
 		SDL_GL_SwapWindow(gWindow);
 	}
 
 	//Destroy window	
 	SDL_DestroyWindow(gWindow);
 	gWindow = nullptr;
+
+	//Deallocate program
+	glDeleteProgram(gProgram);
 
 	//Quit SDL subsystems
 	SDL_Quit();
