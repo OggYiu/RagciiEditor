@@ -1,0 +1,4 @@
+﻿  main.cpp
+c:\users\stalker_linux_2\desktop\working\ragciieditor\vc\ragciieditor\ragciieditor\main.cpp(141): warning C4305: 'argument': truncation from 'double' to 'GLclampf'
+  RagciiEditor.vcxproj -> C:\Users\stalker_linux_2\Desktop\Working\RagciiEditor\vc\RagciiEditor\Debug\RagciiEditor.exe
+  RagciiEditor.vcxproj -> C:\Users\stalker_linux_2\Desktop\Working\RagciiEditor\vc\RagciiEditor\Debug\RagciiEditor.pdb (Partial PDB)
