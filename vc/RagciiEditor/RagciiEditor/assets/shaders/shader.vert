@@ -1,5 +1,8 @@
 #version 130
-void main()
-{
-	gl_Position = vec4(0, 0, 0, 1);
+attribute vec4 aPosition;
+varying vec2 vTexpos;
+
+void main(void) {
+  gl_Position = vec4(aPosition.xy, 0, 1);
+  vTexpos = aPosition.zw;
 }
